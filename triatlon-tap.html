@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🏊 Triatlón Tap! 🚴 🏃</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka+One&family=Nunito:wght@700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#1a1a2e;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none;font-family:'Nunito',sans-serif}
+  canvas{display:block}
+  #gameContainer{position:relative;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center}
+  #ui-overlay{position:absolute;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10}
+  #ui-overlay *{pointer-events:auto}
+
+  /* HUD */
+  .hud{position:absolute;top:8px;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:0 10px;z-index:20}
+  .hud-item{background:rgba(0,0,0,.75);border:2px solid rgba(255,255,255,.3);border-radius:12px;padding:5px 12px;color:#fff;font-family:'Bangers',cursive;font-size:18px;letter-spacing:1px;text-shadow:2px 2px 0 #000}
+  .hud-timer{background:linear-gradient(135deg,#e74c3c,#c0392b);border-color:#ff6b6b}
+  .hud-position{background:linear-gradient(135deg,#f39c12,#e67e22);border-color:#ffd700}
+  .hud-phase{background:linear-gradient(135deg,#3498db,#2980b9);border-color:#74b9ff;font-size:15px}
+
+  /* STAMINA */
+  .stamina-bar-container{position:absolute;bottom:75px;left:50%;transform:translateX(-50%);width:200px;height:22px;background:rgba(0,0,0,.75);border:2px solid #555;border-radius:11px;overflow:hidden;z-index:20}
+  .stamina-bar{height:100%;border-radius:9px;transition:width .15s}
+  .stamina-label{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Bangers',cursive;font-size:12px;color:#fff;text-shadow:1px 1px 2px #000}
+
+  /* TAP AREA */
+  #tap-area{position:absolute;bottom:0;right:0;width:60%;height:50%;z-index:15;cursor:pointer}
+
+  /* MOVE BUTTONS */
+  .move-btn{position:absolute;width:60px;height:60px;border-radius:50%;border:3px solid rgba(255,255,255,.6);background:rgba(0,0,0,.45);color:#fff;font-size:26px;display:none;align-items:center;justify-content:center;z-index:25;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .1s}
+  .move-btn:active{background:rgba(255,255,255,.35);transform:scale(.92)}
+  #btn-up{left:14px;bottom:145px}
+  #btn-down{left:14px;bottom:72px}
+  .move-label{position:absolute;left:14px;bottom:210px;font-family:'Fredoka One',cursive;font-size:11px;color:rgba(255,255,255,.5);display:none;z-index:25;text-align:center;width:60px}
+
+  /* TAP FEEDBACK */
+  .tap-feedback{position:absolute;font-family:'Bangers',cursive;font-size:34px;color:#ffd700;text-shadow:2px 2px 0 #e67e22,4px 4px 0 rgba(0,0,0,.3);pointer-events:none;animation:tapPop .55s ease-out forwards;z-index:30}
+  @keyframes tapPop{0%{transform:scale(.5) translateY(0);opacity:1}50%{transform:scale(1.3) translateY(-25px);opacity:1}100%{transform:scale(.8) translateY(-55px);opacity:0}}
+
+  /* GEL FEEDBACK */
+  .gel-feedback{position:absolute;font-family:'Bangers',cursive;font-size:26px;pointer-events:none;animation:gelPop .8s ease-out forwards;z-index:30}
+  @keyframes gelPop{0%{transform:scale(.5) translateY(0);opacity:1}40%{transform:scale(1.5) translateY(-15px);opacity:1}100%{transform:scale(1) translateY(-45px);opacity:0}}
+
+  /* PHASE ANNOUNCE */
+  .phase-announce{position:absolute;top:45%;left:50%;transform:translate(-50%,-50%);font-family:'Bangers',cursive;font-size:clamp(40px,8vw,64px);color:#ffd700;text-shadow:4px 4px 0 #e67e22,6px 6px 0 rgba(0,0,0,.5);z-index:50;pointer-events:none;animation:announceIn 1.3s ease-out forwards;text-align:center;white-space:nowrap}
+  @keyframes announceIn{0%{transform:translate(-50%,-50%) scale(3);opacity:0}15%{transform:translate(-50%,-50%) scale(1);opacity:1}70%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-50%) scale(.5);opacity:0}}
+
+  /* ======= SCREENS ======= */
+  #start-screen{position:absolute;inset:0;background:linear-gradient(180deg,#0c2461,#1e3799,#0c2461);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;overflow:hidden}
+  #start-screen::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 20% 30%,rgba(255,165,0,.15) 0%,transparent 50%),radial-gradient(circle at 80% 70%,rgba(0,200,255,.15) 0%,transparent 50%)}
+  .game-title{font-family:'Bangers',cursive;font-size:clamp(44px,10vw,76px);color:#ffd700;text-shadow:4px 4px 0 #e67e22,6px 6px 0 rgba(0,0,0,.5);margin-bottom:8px;animation:titleBounce 2s ease-in-out infinite;position:relative;z-index:1}
+  .game-subtitle{font-family:'Fredoka One',cursive;font-size:clamp(15px,4vw,22px);color:rgba(255,255,255,.8);margin-bottom:8px;position:relative;z-index:1}
+  .game-tip{font-family:'Nunito',sans-serif;font-size:clamp(11px,2.8vw,15px);color:rgba(255,255,255,.45);margin-bottom:25px;text-align:center;padding:0 20px;position:relative;z-index:1;line-height:1.4}
+  .start-icons{font-size:36px;margin-bottom:15px;position:relative;z-index:1}
+  @keyframes titleBounce{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1deg)}}
+  .btn-start{font-family:'Bangers',cursive;font-size:30px;letter-spacing:2px;color:#fff;background:linear-gradient(180deg,#e74c3c,#c0392b);border:4px solid #ff6b6b;border-radius:20px;padding:12px 45px;cursor:pointer;text-shadow:2px 2px 0 rgba(0,0,0,.5);box-shadow:0 6px 0 #962d22,0 8px 20px rgba(0,0,0,.4);position:relative;z-index:1;animation:pulse 1.5s ease-in-out infinite}
+  .btn-start:active{transform:translateY(4px);box-shadow:0 2px 0 #962d22}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+  .difficulty-row{display:flex;gap:10px;margin-bottom:20px;position:relative;z-index:1}
+  .btn-diff{font-family:'Fredoka One',cursive;font-size:15px;padding:7px 18px;border-radius:12px;border:3px solid transparent;cursor:pointer;color:#fff;opacity:.55;transition:all .2s}
+  .btn-diff.selected{opacity:1;transform:scale(1.1)}
+  .btn-diff.easy{background:#27ae60;border-color:#2ecc71}
+  .btn-diff.medium{background:#e67e22;border-color:#f39c12}
+  .btn-diff.hard{background:#c0392b;border-color:#e74c3c}
+
+  /* Race mode selector */
+  .mode-section-title{font-family:'Fredoka One',cursive;font-size:13px;color:rgba(255,255,255,.5);margin-bottom:8px;position:relative;z-index:1}
+  .mode-row{display:flex;gap:10px;margin-bottom:18px;position:relative;z-index:1;flex-wrap:wrap;justify-content:center}
+  .btn-mode{font-family:'Fredoka One',cursive;font-size:13px;padding:10px 14px;border-radius:14px;border:3px solid transparent;cursor:pointer;color:#fff;opacity:.55;transition:all .2s;text-align:center;min-width:90px;line-height:1.3}
+  .btn-mode.selected{opacity:1;transform:scale(1.08)}
+  .btn-mode .mode-icon{font-size:22px;display:block;margin-bottom:2px}
+  .btn-mode .mode-name{font-size:12px;display:block}
+  .btn-mode .mode-desc{font-size:9px;display:block;opacity:.7;margin-top:2px}
+
+  /* TRANSITION */
+  #transition-screen{position:absolute;inset:0;background:linear-gradient(180deg,#2c3e50,#34495e);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:90}
+  .transition-title{font-family:'Bangers',cursive;font-size:32px;color:#ffd700;text-shadow:3px 3px 0 #000;margin-bottom:15px}
+  .transition-timer{font-family:'Bangers',cursive;font-size:68px;color:#e74c3c;text-shadow:3px 3px 0 #000}
+  .gear-items{display:flex;gap:16px;margin:18px 0;flex-wrap:wrap;justify-content:center}
+  .gear-item{width:68px;height:68px;background:rgba(255,255,255,.1);border:3px solid #555;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:34px;cursor:pointer;transition:all .2s}
+  .gear-item.tapped{background:rgba(46,204,113,.4);border-color:#2ecc71;transform:scale(1.1)}
+  .gear-item.needed{border-color:#ffd700;animation:gearPulse .8s ease-in-out infinite}
+  @keyframes gearPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,215,0,.5)}50%{box-shadow:0 0 15px 5px rgba(255,215,0,.3)}}
+  .tap-instruction{font-family:'Fredoka One',cursive;font-size:16px;color:rgba(255,255,255,.6);margin-top:12px}
+
+  /* RESULTS */
+  #result-screen{position:absolute;inset:0;background:linear-gradient(180deg,#0c2461,#1e3799);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100}
+  .result-trophy{font-size:76px;margin-bottom:8px}
+  .result-title{font-family:'Bangers',cursive;font-size:44px;color:#ffd700;text-shadow:3px 3px 0 #000}
+  .result-time{font-family:'Nunito',sans-serif;font-weight:900;font-size:26px;color:#fff;margin:8px 0}
+  .result-detail{font-family:'Nunito',sans-serif;font-size:15px;color:rgba(255,255,255,.65);margin:2px 0}
+  .btn-restart{font-family:'Bangers',cursive;font-size:26px;color:#fff;background:linear-gradient(180deg,#27ae60,#1e8449);border:3px solid #2ecc71;border-radius:16px;padding:10px 36px;cursor:pointer;margin-top:22px;box-shadow:0 4px 0 #145a32;letter-spacing:1px}
+  .btn-restart:active{transform:translateY(3px);box-shadow:0 1px 0 #145a32}
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+  <div id="ui-overlay">
+    <div class="hud" id="hud" style="display:none">
+      <div class="hud-item hud-timer" id="hud-timer">⏱ 00:00</div>
+      <div class="hud-item hud-phase" id="hud-phase">🏊 NATACIÓN</div>
+      <div class="hud-item hud-position" id="hud-position">🏅 1ro</div>
+    </div>
+    <div class="stamina-bar-container" id="stamina-container" style="display:none">
+      <div class="stamina-bar" id="stamina-bar" style="width:100%"></div>
+      <div class="stamina-label">⚡ STAMINA</div>
+    </div>
+    <div id="tap-area"></div>
+    <button class="move-btn" id="btn-up">▲</button>
+    <button class="move-btn" id="btn-down">▼</button>
+    <div class="move-label" id="move-label">MOVER</div>
+  </div>
+
+  <div id="start-screen">
+    <div class="game-title">TRIATLÓN TAP!</div>
+    <div class="game-subtitle">🏊 Nada · 🚴 Pedalea · 🏃 Corre</div>
+    <div class="start-icons">🏊‍♂️ ➜ 🚴‍♂️ ➜ 🏃‍♂️</div>
+    <div class="game-tip">Tap rápido para avanzar · Recoge geles ⚡ para recuperar energía<br>Mueve tu atleta ▲▼ para atrapar los geles</div>
+    
+    <div class="mode-section-title">📏 DISTANCIA</div>
+    <div class="mode-row">
+      <button class="btn-mode selected" data-mode="supersprint" style="background:#2ecc71;border-color:#27ae60">
+        <span class="mode-icon">⚡</span>
+        <span class="mode-name">SUPER SPRINT</span>
+        <span class="mode-desc">Rápido e intenso</span>
+      </button>
+      <button class="btn-mode" data-mode="sprint" style="background:#f39c12;border-color:#e67e22">
+        <span class="mode-icon">🔥</span>
+        <span class="mode-name">SPRINT</span>
+        <span class="mode-desc">Desafiante</span>
+      </button>
+      <button class="btn-mode" data-mode="olimpico" style="background:#e74c3c;border-color:#c0392b">
+        <span class="mode-icon">💀</span>
+        <span class="mode-name">OLÍMPICO</span>
+        <span class="mode-desc">¡El verdadero reto!</span>
+      </button>
+    </div>
+
+    <div class="mode-section-title">💪 DIFICULTAD</div>
+    <div class="difficulty-row">
+      <button class="btn-diff easy selected" data-diff="easy">FÁCIL</button>
+      <button class="btn-diff medium" data-diff="medium">MEDIO</button>
+      <button class="btn-diff hard" data-diff="hard">DIFÍCIL</button>
+    </div>
+    <button class="btn-start" id="btn-start">¡EMPEZAR!</button>
+  </div>
+
+  <div id="transition-screen">
+    <div class="transition-title" id="trans-title">⚡ TRANSICIÓN</div>
+    <div class="transition-timer" id="trans-timer">10</div>
+    <div class="tap-instruction" id="trans-instruction">¡Toca los items para cambiar equipo!</div>
+    <div class="gear-items" id="gear-items"></div>
+  </div>
+
+  <div id="result-screen">
+    <div class="result-trophy" id="result-trophy">🏆</div>
+    <div class="result-title" id="result-title">¡TERMINASTE!</div>
+    <div class="result-time" id="result-time"></div>
+    <div id="result-details"></div>
+    <button class="btn-restart" id="btn-restart">🔄 JUGAR DE NUEVO</button>
+  </div>
+</div>
+
+<script>
+// ===================== CANVAS =====================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+// ===================== CONSTANTS =====================
+const PHASES = { SWIM:0, TRANS1:1, BIKE:2, TRANS2:3, RUN:4, FINISH:5 };
+const PHASE_NAMES = ['🏊 NATACIÓN','','🚴 CICLISMO','','🏃 CARRERA','🏁 FIN'];
+
+// Race distance modes (proportional to real triathlon)
+const RACE_MODES = {
+  supersprint: { name:'SUPER SPRINT', desc:'Rápido e intenso', icon:'⚡', swim:300, bike:500, run:250, color:'#2ecc71' },
+  sprint:      { name:'SPRINT', desc:'Desafiante', icon:'🔥', swim:500, bike:800, run:400, color:'#f39c12' },
+  olimpico:    { name:'OLÍMPICO', desc:'¡El verdadero reto!', icon:'💀', swim:800, bike:1400, run:700, color:'#e74c3c' },
+};
+let raceMode = 'supersprint';
+
+function getPhaseDist() {
+  const m = RACE_MODES[raceMode];
+  return [m.swim, 0, m.bike, 0, m.run];
+}
+
+let difficulty = 'easy';
+const DIFF = {
+  easy:   { aiSpeed:.85, stDrain:.12, stRecover:.30, tapPow:1.2, gelFreq:2.5, gelEnergy:30 },
+  medium: { aiSpeed:1.05, stDrain:.22, stRecover:.18, tapPow:1.0, gelFreq:3.0, gelEnergy:25 },
+  hard:   { aiSpeed:1.25, stDrain:.32, stRecover:.10, tapPow:.85, gelFreq:2.0, gelEnergy:35 }
+};
+
+// ===================== GAME STATE =====================
+let game = null;
+
+// Lane Y positions per phase
+function getLaneYs(phase) {
+  if (phase === PHASES.SWIM) return [H*.42, H*.52, H*.62, H*.72];
+  if (phase === PHASES.BIKE) return [H*.60, H*.67, H*.74, H*.80];
+  return [H*.58, H*.65, H*.72, H*.79];
+}
+
+function createGame() {
+  const s = DIFF[difficulty];
+  const lanes = getLaneYs(PHASES.SWIM);
+  return {
+    phase: PHASES.SWIM,
+    totalTime: 0, phaseTime: 0,
+    phaseTimes: [0,0,0,0,0],
+    running: false,
+
+    player: {
+      laneIndex: 0, // which lane (0-3)
+      targetY: lanes[0], y: lanes[0],
+      speed: 0, maxSpeed: 3.5,
+      distance: 0, stamina: 100,
+      tapPower: s.tapPow,
+      staminaDrain: s.stDrain,
+      staminaRecover: s.stRecover,
+      animFrame: 0, animTimer: 0,
+    },
+
+    rivals: [
+      { laneIndex:1, y:lanes[1], targetY:lanes[1], speed:0, baseSpeed:1.35*s.aiSpeed, distance:0, color:'#e74c3c', name:'Rojo', animFrame:0, animTimer:0 },
+      { laneIndex:2, y:lanes[2], targetY:lanes[2], speed:0, baseSpeed:1.20*s.aiSpeed, distance:0, color:'#3498db', name:'Azul', animFrame:0, animTimer:0 },
+      { laneIndex:3, y:lanes[3], targetY:lanes[3], speed:0, baseSpeed:1.05*s.aiSpeed, distance:0, color:'#9b59b6', name:'Púrpura', animFrame:0, animTimer:0 },
+    ],
+
+    transition: { timer:0, maxTime:8, items:[], itemsTapped:0, totalItems:0 },
+    tapCount: 0, lastTapTime: 0, scrollOffset: 0,
+    gelsCollected: 0,
+
+    // Energy gels on the track
+    gels: [],
+    gelSpawnTimer: 0,
+    gelSpawnInterval: s.gelFreq,
+    gelEnergy: s.gelEnergy,
+
+    // Particles
+    particles: [], splashes: [],
+  };
+}
+
+// ===================== DIFFICULTY =====================
+document.querySelectorAll('.btn-diff').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.btn-diff').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    difficulty = btn.dataset.diff;
+  });
+});
+
+// ===================== RACE MODE =====================
+document.querySelectorAll('.btn-mode').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    raceMode = btn.dataset.mode;
+  });
+});
+
+// ===================== MOVE BUTTONS =====================
+let movingUp = false, movingDown = false;
+
+const btnUp = document.getElementById('btn-up');
+const btnDown = document.getElementById('btn-down');
+
+function startMove(dir) { if (dir === 'up') movingUp = true; else movingDown = true; }
+function stopMove(dir) { if (dir === 'up') movingUp = false; else movingDown = false; }
+
+btnUp.addEventListener('mousedown', e => { e.preventDefault(); startMove('up'); });
+btnUp.addEventListener('mouseup', () => stopMove('up'));
+btnUp.addEventListener('mouseleave', () => stopMove('up'));
+btnUp.addEventListener('touchstart', e => { e.preventDefault(); startMove('up'); }, {passive:false});
+btnUp.addEventListener('touchend', e => { e.preventDefault(); stopMove('up'); });
+
+btnDown.addEventListener('mousedown', e => { e.preventDefault(); startMove('down'); });
+btnDown.addEventListener('mouseup', () => stopMove('down'));
+btnDown.addEventListener('mouseleave', () => stopMove('down'));
+btnDown.addEventListener('touchstart', e => { e.preventDefault(); startMove('down'); }, {passive:false});
+btnDown.addEventListener('touchend', e => { e.preventDefault(); stopMove('down'); });
+
+function showMoveButtons(show) {
+  const d = show ? 'flex' : 'none';
+  btnUp.style.display = d;
+  btnDown.style.display = d;
+  document.getElementById('move-label').style.display = show ? 'block' : 'none';
+}
+
+// ===================== TAP =====================
+const tapArea = document.getElementById('tap-area');
+
+function handleTap(e) {
+  if (!game || !game.running) return;
+  const phase = game.phase;
+  if (phase === PHASES.TRANS1 || phase === PHASES.TRANS2) return;
+  e.preventDefault();
+
+  game.tapCount++;
+  game.lastTapTime = performance.now();
+
+  const p = game.player;
+  // Stamina gives bonus but tap ALWAYS adds speed (minimum 40% power even at 0 stamina)
+  const staminaMultiplier = 0.4 + 0.6 * (p.stamina / 100);
+  const boost = p.tapPower * staminaMultiplier;
+  p.speed = Math.min(p.speed + boost, p.maxSpeed * 1.8);
+  // Longer races drain more stamina per tap
+  const modeDrainScale = raceMode === 'olimpico' ? 1.6 : raceMode === 'sprint' ? 1.25 : 1.0;
+  p.stamina = Math.max(0, p.stamina - p.staminaDrain * 5 * modeDrainScale);
+
+  const cx = e.touches ? e.touches[0].clientX : e.clientX;
+  const cy = e.touches ? e.touches[0].clientY : e.clientY;
+  showTapFeedback(cx, cy);
+
+  // Particles
+  if (phase === PHASES.SWIM) {
+    for (let i = 0; i < 3; i++) game.splashes.push({ x:90, y:p.y, vx:Math.random()*3+1, vy:(Math.random()-.5)*4, life:1, size:Math.random()*4+2 });
+  } else {
+    for (let i = 0; i < 2; i++) game.particles.push({ x:75, y:p.y+15, vx:-Math.random()*2, vy:(Math.random()-.5)*2, life:1, color:phase===PHASES.BIKE?'#888':'#c8a96e', size:Math.random()*3+1 });
+  }
+}
+tapArea.addEventListener('mousedown', handleTap);
+tapArea.addEventListener('touchstart', handleTap, {passive:false});
+
+function showTapFeedback(x, y) {
+  const el = document.createElement('div');
+  el.className = 'tap-feedback';
+  el.textContent = ['TAP!','¡TAP!','💥','⚡'][Math.floor(Math.random()*4)];
+  el.style.left = (x-30)+'px'; el.style.top = (y-20)+'px';
+  document.getElementById('ui-overlay').appendChild(el);
+  setTimeout(() => el.remove(), 550);
+}
+
+function showGelFeedback(x, y, amount) {
+  const el = document.createElement('div');
+  el.className = 'gel-feedback';
+  el.textContent = `⚡+${amount}`;
+  el.style.color = '#2ecc71';
+  el.style.textShadow = '2px 2px 0 #000';
+  el.style.left = (x-20)+'px'; el.style.top = (y-20)+'px';
+  document.getElementById('ui-overlay').appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+// ===================== GELS SYSTEM =====================
+function spawnGel() {
+  if (!game) return;
+  const lanes = getLaneYs(game.phase);
+  const laneIdx = Math.floor(Math.random() * lanes.length);
+  const types = [
+    { emoji:'🧃', color:'#2ecc71', energy:1.0, name:'Gel' },
+    { emoji:'🥤', color:'#3498db', energy:.7, name:'Agua' },
+    { emoji:'⚡', color:'#ffd700', energy:1.5, name:'Boost' },
+    { emoji:'🍌', color:'#f1c40f', energy:.8, name:'Banana' },
+  ];
+  const type = types[Math.floor(Math.random() * types.length)];
+
+  game.gels.push({
+    x: W + 50,
+    y: lanes[laneIdx],
+    laneIndex: laneIdx,
+    type: type,
+    size: 18,
+    collected: false,
+    glow: 0,
+  });
+}
+
+function updateGels(dt) {
+  if (!game) return;
+  const phase = game.phase;
+  if (phase === PHASES.TRANS1 || phase === PHASES.TRANS2 || phase === PHASES.FINISH) return;
+
+  // Spawn timer
+  game.gelSpawnTimer += dt;
+  if (game.gelSpawnTimer >= game.gelSpawnInterval) {
+    game.gelSpawnTimer = 0;
+    // Randomize next interval a bit
+    game.gelSpawnInterval = DIFF[difficulty].gelFreq * (0.7 + Math.random() * 0.6);
+    spawnGel();
+  }
+
+  const p = game.player;
+  const playerX = 80;
+
+  // Update gels
+  game.gels = game.gels.filter(g => {
+    if (g.collected) return false;
+
+    // Move gel towards player (scrolling effect)
+    g.x -= (p.speed + 1.5) * dt * 25;
+    g.glow += dt * 5;
+
+    // Off screen left
+    if (g.x < -40) return false;
+
+    // Collision with player
+    const dx = playerX - g.x;
+    const dy = p.y - g.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < 35) {
+      g.collected = true;
+      const energy = game.gelEnergy * g.type.energy;
+      p.stamina = Math.min(100, p.stamina + energy);
+      game.gelsCollected++;
+
+      // Feedback
+      const screenX = g.x;
+      const screenY = g.y;
+      showGelFeedback(screenX, screenY, Math.round(energy));
+
+      // Flash effect
+      const flash = document.createElement('div');
+      flash.style.cssText = 'position:absolute;inset:0;background:radial-gradient(circle,rgba(46,204,113,.3),transparent 70%);pointer-events:none;z-index:25;animation:flash .3s ease-out forwards';
+      document.getElementById('ui-overlay').appendChild(flash);
+      setTimeout(() => flash.remove(), 300);
+
+      return false;
+    }
+    return true;
+  });
+}
+
+function drawGels() {
+  if (!game) return;
+  game.gels.forEach(g => {
+    const glowAlpha = .3 + Math.sin(g.glow) * .2;
+    // Glow circle
+    ctx.fillStyle = g.type.color + '55';
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, g.size + 8 + Math.sin(g.glow)*3, 0, Math.PI*2);
+    ctx.fill();
+
+    // Background circle
+    ctx.fillStyle = g.type.color + 'cc';
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, g.size, 0, Math.PI*2);
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(g.x, g.y, g.size, 0, Math.PI*2);
+    ctx.stroke();
+
+    // Emoji
+    ctx.font = `${g.size + 4}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(g.type.emoji, g.x, g.y + 1);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  });
+}
+
+// ===================== TRANSITION =====================
+const transScreen = document.getElementById('transition-screen');
+const gearItemsEl = document.getElementById('gear-items');
+
+function startTransition(num) {
+  game.phase = num === 1 ? PHASES.TRANS1 : PHASES.TRANS2;
+  game.transition.timer = game.transition.maxTime;
+  game.transition.itemsTapped = 0;
+  showMoveButtons(false);
+
+  const items = num === 1
+    ? [{emoji:'🪖',name:'Casco'},{emoji:'👟',name:'Zapatillas'},{emoji:'🚴',name:'Bici'},{emoji:'🥤',name:'Hidratación'}]
+    : [{emoji:'👟',name:'Running'},{emoji:'🎽',name:'Camiseta'},{emoji:'🧢',name:'Gorra'}];
+
+  game.transition.totalItems = items.length;
+  game.transition.items = items.map(it => ({...it, tapped:false}));
+  transScreen.style.display = 'flex';
+  document.getElementById('trans-title').textContent = num === 1 ? '🚴 CAMBIO A CICLISMO' : '🏃 CAMBIO A CARRERA';
+  renderGearItems();
+}
+
+function renderGearItems() {
+  gearItemsEl.innerHTML = '';
+  game.transition.items.forEach((item, i) => {
+    const div = document.createElement('div');
+    div.className = 'gear-item' + (item.tapped ? ' tapped' : ' needed');
+    div.innerHTML = item.emoji;
+    const tap = () => tapGearItem(i);
+    div.addEventListener('click', tap);
+    div.addEventListener('touchstart', e => { e.preventDefault(); tap(); }, {passive:false});
+    gearItemsEl.appendChild(div);
+  });
+}
+
+function tapGearItem(i) {
+  if (game.transition.items[i].tapped) return;
+  game.transition.items[i].tapped = true;
+  game.transition.itemsTapped++;
+  renderGearItems();
+  if (game.transition.itemsTapped >= game.transition.totalItems) endTransition();
+}
+
+function endTransition() {
+  transScreen.style.display = 'none';
+  const lanes = game.phase === PHASES.TRANS1 ? getLaneYs(PHASES.BIKE) : getLaneYs(PHASES.RUN);
+
+  if (game.phase === PHASES.TRANS1) {
+    game.phase = PHASES.BIKE;
+    game.player.maxSpeed = 4.5;
+    showPhaseAnnounce('🚴 ¡A PEDALEAR!');
+  } else {
+    game.phase = PHASES.RUN;
+    game.player.maxSpeed = 3.0;
+    showPhaseAnnounce('🏃 ¡A CORRER!');
+  }
+
+  game.player.distance = 0; game.player.speed = 0; game.player.stamina = 100;
+  game.player.laneIndex = 0; game.player.y = lanes[0]; game.player.targetY = lanes[0];
+  game.rivals.forEach((r,i) => { r.distance = 0; r.speed = 0; r.y = lanes[i+1]; r.targetY = lanes[i+1]; r.laneIndex = i+1; });
+  game.phaseTime = 0; game.scrollOffset = 0;
+  game.gels = []; game.gelSpawnTimer = 0;
+  showMoveButtons(true);
+}
+
+// ===================== ANNOUNCE =====================
+function showPhaseAnnounce(text) {
+  const el = document.createElement('div');
+  el.className = 'phase-announce';
+  el.textContent = text;
+  document.getElementById('ui-overlay').appendChild(el);
+  setTimeout(() => el.remove(), 1400);
+}
+
+// ===================== DRAWING =====================
+function drawBackground(phase) {
+  const off = game.scrollOffset % W;
+
+  if (phase === PHASES.SWIM) {
+    // Sky
+    const sg = ctx.createLinearGradient(0,0,0,H*.3);
+    sg.addColorStop(0,'#74b9ff'); sg.addColorStop(1,'#a8d8ea');
+    ctx.fillStyle = sg; ctx.fillRect(0,0,W,H*.3);
+    // Water
+    const wg = ctx.createLinearGradient(0,H*.25,0,H);
+    wg.addColorStop(0,'#0984e3'); wg.addColorStop(.5,'#0652DD'); wg.addColorStop(1,'#1B1464');
+    ctx.fillStyle = wg; ctx.fillRect(0,H*.25,W,H);
+    // Waves
+    ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 2;
+    for (let row = 0; row < 6; row++) {
+      ctx.beginPath();
+      const by = H*.3 + row*50;
+      for (let x = -20; x <= W+20; x+=5) {
+        const y = by + Math.sin((x + off*.5 + row*30) * .03)*8;
+        x === -20 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+    }
+    // Buoys
+    for (let i = 0; i < 10; i++) {
+      const bx = (i*120 - off*.5) % (W+120) - 60;
+      const by2 = H*.28 + Math.sin(performance.now()*.003+i)*5;
+      ctx.fillStyle = i%2===0?'#e74c3c':'#f1c40f';
+      ctx.beginPath(); ctx.arc(bx,by2,6,0,Math.PI*2); ctx.fill();
+    }
+  } else if (phase === PHASES.BIKE) {
+    const sg = ctx.createLinearGradient(0,0,0,H*.5);
+    sg.addColorStop(0,'#55a3f0'); sg.addColorStop(1,'#87CEEB');
+    ctx.fillStyle = sg; ctx.fillRect(0,0,W,H*.5);
+    // Mountains
+    ctx.fillStyle = '#4a8c5c'; ctx.beginPath(); ctx.moveTo(0,H*.4);
+    for (let x = 0; x <= W; x+=60) ctx.lineTo(x, H*.4 - Math.sin((x+off*.1)*.008)*60 - 20);
+    ctx.lineTo(W,H*.5); ctx.lineTo(0,H*.5); ctx.fill();
+    // Trees bg
+    ctx.fillStyle = '#2d6a3f';
+    for (let i = 0; i < 8; i++) { const tx = (i*160-off*.3)%(W+200)-100; drawTree(tx,H*.48,20); }
+    // Road
+    ctx.fillStyle = '#555'; ctx.fillRect(0,H*.55,W,H*.3);
+    ctx.fillStyle = '#444'; ctx.fillRect(0,H*.55,W,4); ctx.fillRect(0,H*.85-4,W,4);
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 15; i++) { const dx = (i*80-off)%(W+80)-40; ctx.fillRect(dx,H*.695,40,4); }
+    // Grass
+    ctx.fillStyle = '#27ae60'; ctx.fillRect(0,H*.85,W,H*.15);
+    ctx.fillStyle = '#1e8449';
+    for (let i = 0; i < 5; i++) { const tx = (i*250-off*.6)%(W+300)-100; drawTree(tx,H*.87,30); }
+  } else if (phase === PHASES.RUN) {
+    const sg = ctx.createLinearGradient(0,0,0,H*.5);
+    sg.addColorStop(0,'#f9ca24'); sg.addColorStop(1,'#87CEEB');
+    ctx.fillStyle = sg; ctx.fillRect(0,0,W,H*.5);
+    // Hills
+    ctx.fillStyle = '#6ab04c'; ctx.beginPath(); ctx.moveTo(0,H*.55);
+    for (let x = 0; x <= W; x+=40) ctx.lineTo(x, H*.55 - Math.sin((x+off*.15)*.01)*40);
+    ctx.lineTo(W,H*.6); ctx.lineTo(0,H*.6); ctx.fill();
+    // Trail
+    ctx.fillStyle = '#c8a96e'; ctx.fillRect(0,H*.55,W,H*.3);
+    ctx.fillStyle = '#b8995e'; ctx.fillRect(0,H*.55,W,3);
+    // Grass
+    ctx.fillStyle = '#27ae60'; ctx.fillRect(0,H*.85,W,H*.15);
+    // Flags
+    for (let i = 0; i < 6; i++) {
+      const fx = (i*200-off*.5)%(W+200)-50;
+      ctx.fillStyle = '#8B4513'; ctx.fillRect(fx,H*.45,3,H*.1);
+      ctx.fillStyle = i%2===0?'#e74c3c':'#3498db';
+      ctx.beginPath(); ctx.moveTo(fx+3,H*.45); ctx.lineTo(fx+20,H*.48); ctx.lineTo(fx+3,H*.51); ctx.fill();
+    }
+  }
+}
+
+function drawTree(x, y, sz) {
+  ctx.fillStyle = '#5D4037'; ctx.fillRect(x-sz*.1, y-sz*.3, sz*.2, sz*.4);
+  ctx.fillStyle = '#2d6a3f'; ctx.beginPath(); ctx.arc(x, y-sz*.5, sz*.4, 0, Math.PI*2); ctx.fill();
+}
+
+function drawCharacter(x, y, phase, isPlayer, color, animFrame) {
+  ctx.save();
+  const s = isPlayer ? 1.1 : .85;
+  ctx.translate(x, y); ctx.scale(s, s);
+
+  if (phase === PHASES.SWIM) {
+    const arm = Math.sin(animFrame*.3)*.6;
+    ctx.fillStyle = isPlayer?'#f5b041':color;
+    ctx.beginPath(); ctx.ellipse(0,0,18,8,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fad390'; ctx.beginPath(); ctx.arc(16,-4,8,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = isPlayer?'#e74c3c':color; ctx.beginPath(); ctx.arc(16,-6,7,Math.PI,0); ctx.fill();
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(13,-6,8,3);
+    ctx.fillStyle = '#74b9ff'; ctx.fillRect(14,-5.5,3,2); ctx.fillRect(18,-5.5,3,2);
+    ctx.strokeStyle = isPlayer?'#f5b041':color; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(5,-2); ctx.lineTo(5+Math.cos(arm)*14,-2+Math.sin(arm)*14); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-5,-2); ctx.lineTo(-5+Math.cos(-arm)*14,-2+Math.sin(-arm)*14); ctx.stroke();
+  } else if (phase === PHASES.BIKE) {
+    const wR = 12, rX = -14, fX = 14, wY = 12, sp = animFrame*.5;
+    ctx.strokeStyle = isPlayer?'#c0392b':color; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(rX,wY); ctx.lineTo(0,-2); ctx.lineTo(fX,wY); ctx.moveTo(0,-2); ctx.lineTo(-4,-2); ctx.lineTo(rX,wY); ctx.moveTo(0,-2); ctx.lineTo(fX-2,-4); ctx.stroke();
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+    [rX,fX].forEach(wx => {
+      ctx.beginPath(); ctx.arc(wx,wY,wR,0,Math.PI*2); ctx.stroke();
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) { const a = sp+i*Math.PI/2; ctx.beginPath(); ctx.moveTo(wx,wY); ctx.lineTo(wx+Math.cos(a)*wR,wY+Math.sin(a)*wR); ctx.stroke(); }
+      ctx.lineWidth = 2;
+    });
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(-3,-14,6,12);
+    ctx.fillStyle = '#fad390'; ctx.beginPath(); ctx.arc(0,-18,6,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = isPlayer?'#e74c3c':color; ctx.beginPath(); ctx.arc(0,-20,6,Math.PI,0); ctx.lineTo(8,-20); ctx.lineTo(5,-18); ctx.fill();
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(-3,-18,8,2.5);
+    const la = animFrame*.4;
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0,-3); ctx.lineTo(Math.cos(la)*8,-3+Math.abs(Math.sin(la))*10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,-3); ctx.lineTo(Math.cos(la+Math.PI)*8,-3+Math.abs(Math.sin(la+Math.PI))*10); ctx.stroke();
+  } else if (phase === PHASES.RUN) {
+    const ls = Math.sin(animFrame*.4)*12, as2 = Math.sin(animFrame*.4)*10, bb = Math.abs(Math.sin(animFrame*.4))*3;
+    ctx.translate(0,-bb);
+    ctx.fillStyle = isPlayer?'#e74c3c':color; ctx.fillRect(-5,-12,10,14);
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(-5,0,10,6);
+    ctx.fillStyle = '#fad390'; ctx.beginPath(); ctx.arc(0,-18,7,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = isPlayer?'#2c3e50':color; ctx.fillRect(-7,-20,14,3);
+    ctx.fillStyle = '#2c3e50'; ctx.fillRect(2,-18,2.5,2.5);
+    ctx.strokeStyle = '#fad390'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(4,-8); ctx.lineTo(4+as2,-8+10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-4,-8); ctx.lineTo(-4-as2,-8+10); ctx.stroke();
+    ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(2,5); ctx.lineTo(2+ls,19); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-2,5); ctx.lineTo(-2-ls,19); ctx.stroke();
+    ctx.fillStyle = '#e74c3c';
+    ctx.fillRect(2+ls-2,18,6,3); ctx.fillRect(-2-ls-2,18,6,3);
+  }
+  ctx.restore();
+}
+
+function drawParticles() {
+  game.splashes.forEach(s => {
+    ctx.fillStyle = `rgba(173,216,230,${s.life})`; ctx.beginPath(); ctx.arc(s.x,s.y,s.size,0,Math.PI*2); ctx.fill();
+  });
+  game.particles.forEach(p => {
+    ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+  });
+}
+
+function drawProgressBar() {
+  const phase = game.phase;
+  if (phase===PHASES.TRANS1||phase===PHASES.TRANS2) return;
+  const dist = getPhaseDist()[phase];
+  const progress = Math.min(game.player.distance/dist,1);
+  const bW = W*.7, bH = 12, bX = (W-bW)/2, bY = H-28;
+
+  ctx.fillStyle = 'rgba(0,0,0,.5)';
+  roundRect(ctx, bX-2,bY-2,bW+4,bH+4,7); ctx.fill();
+  ctx.fillStyle = '#555';
+  roundRect(ctx, bX,bY,bW,bH,5); ctx.fill();
+
+  const gr = ctx.createLinearGradient(bX,0,bX+bW*progress,0);
+  gr.addColorStop(0,'#2ecc71'); gr.addColorStop(1,'#27ae60');
+  ctx.fillStyle = gr;
+  roundRect(ctx, bX,bY,Math.max(bW*progress,6),bH,5); ctx.fill();
+
+  // Rival dots
+  game.rivals.forEach(r => {
+    const rp = Math.min(r.distance/dist,1);
+    ctx.fillStyle = r.color; ctx.beginPath(); ctx.arc(bX+bW*rp,bY+bH/2,4,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+  // Player dot
+  ctx.fillStyle = '#ffd700'; ctx.beginPath(); ctx.arc(bX+bW*progress,bY+bH/2,5,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.font = '14px sans-serif'; ctx.fillText('🏁', bX+bW+6, bY+bH-1);
+}
+
+function drawFinishLine() {
+  const phase = game.phase;
+  if (phase===PHASES.TRANS1||phase===PHASES.TRANS2||phase===PHASES.FINISH) return;
+  const dist = getPhaseDist()[phase];
+  const progress = game.player.distance / dist;
+  if (progress > .75) {
+    const rem = (1-progress)/.25;
+    const fx = 80 + rem * (W-40);
+    const topY = H*.25, botY = H*.88;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(fx-4,topY,8,botY-topY); ctx.fillRect(fx+36,topY,8,botY-topY);
+    const sz = 10;
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+      ctx.fillStyle = (r+c)%2===0?'#000':'#fff';
+      ctx.fillRect(fx+c*sz,topY+r*sz,sz,sz);
+    }
+    ctx.font = 'bold 26px Bangers,cursive'; ctx.fillStyle = '#ffd700'; ctx.strokeStyle = '#000'; ctx.lineWidth = 3;
+    ctx.textAlign = 'center'; ctx.strokeText('FINISH',fx+20,topY-8); ctx.fillText('FINISH',fx+20,topY-8); ctx.textAlign = 'left';
+  }
+}
+
+// Lane indicator arrows for gels
+function drawLaneIndicators() {
+  if (!game || game.gels.length === 0) return;
+  const lanes = getLaneYs(game.phase);
+  const pLane = game.player.laneIndex;
+  
+  // Show small arrows pointing to lanes that have gels
+  game.gels.forEach(g => {
+    if (g.x > W * .3 && g.x < W + 50) {
+      // Arrow on left side pointing to gel lane
+      const arrowY = g.y;
+      const alpha = .3 + Math.sin(performance.now()*.005)*.2;
+      ctx.fillStyle = `rgba(46,204,113,${alpha})`;
+      ctx.font = '16px sans-serif';
+      ctx.fillText(g.laneIndex < pLane ? '▲' : g.laneIndex > pLane ? '▼' : '→', 15, arrowY + 5);
+    }
+  });
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();
+}
+
+// ===================== UPDATE =====================
+function getPosition() {
+  const all = [{dist:game.player.distance,p:true},...game.rivals.map(r=>({dist:r.distance,p:false}))];
+  all.sort((a,b) => b.dist - a.dist);
+  return all.findIndex(a => a.p) + 1;
+}
+
+function update(dt) {
+  if (!game || !game.running) return;
+  const phase = game.phase;
+  game.totalTime += dt;
+  game.phaseTime += dt;
+  game.phaseTimes[phase] += dt;
+
+  if (phase === PHASES.TRANS1 || phase === PHASES.TRANS2) {
+    game.transition.timer -= dt;
+    document.getElementById('trans-timer').textContent = Math.ceil(game.transition.timer);
+    if (game.transition.timer <= 0) endTransition();
+    return;
+  }
+
+  const p = game.player;
+  const dist = getPhaseDist()[phase];
+  const lanes = getLaneYs(phase);
+
+  // Handle vertical movement
+  if (movingUp && p.laneIndex > 0) { p.laneIndex--; movingUp = false; }
+  if (movingDown && p.laneIndex < lanes.length - 1) { p.laneIndex++; movingDown = false; }
+  p.targetY = lanes[p.laneIndex];
+  // Smooth movement to target lane
+  p.y += (p.targetY - p.y) * .15;
+
+  // Stamina recovery - slow even while tapping, fast when resting
+  const sinceTap = (performance.now() - game.lastTapTime) / 1000;
+  if (sinceTap > .5) {
+    p.stamina = Math.min(100, p.stamina + p.staminaRecover * dt * 80);
+  } else {
+    // Small passive recovery even while tapping
+    p.stamina = Math.min(100, p.stamina + p.staminaRecover * dt * 10);
+  }
+
+  // Speed decay - slightly faster decay at low stamina but NEVER a hard brake
+  const decay = phase === PHASES.BIKE ? .975 : .955;
+  const staminaPenalty = p.stamina <= 10 ? .995 : 1.0; // very gentle extra decay
+  p.speed *= decay * staminaPenalty;
+  // Minimum speed so tapping always feels responsive
+  if (p.speed < 0.3 && game.tapCount > 0) p.speed = 0.3;
+
+  p.distance += p.speed * dt * 30;
+  game.scrollOffset += p.speed * dt * 15;
+
+  p.animTimer += dt * (1 + p.speed * 2);
+  p.animFrame = p.animTimer;
+
+  // Rivals - competitive AI with bursts and rubber-banding
+  game.rivals.forEach((r, ri) => {
+    // Each rival has a unique rhythm
+    const rhythm = Math.sin(game.totalTime * (0.8 + ri * 0.15)) * .25;
+    // Random burst of speed every ~5-8 seconds
+    const burstCycle = Math.sin(game.totalTime * (0.3 + ri * 0.1));
+    const burst = burstCycle > 0.85 ? 0.4 : 0;
+    
+    r.speed = r.baseSpeed + rhythm + burst;
+    
+    // Rubber-banding: rivals catch up if behind, ease off if too far ahead
+    const gap = p.distance - r.distance;
+    if (gap > 20) r.speed *= 1.12;       // far behind → push hard
+    else if (gap > 8) r.speed *= 1.05;   // a bit behind → push
+    else if (gap < -25) r.speed *= .88;   // way ahead → ease off
+    else if (gap < -10) r.speed *= .94;   // a bit ahead → slight ease
+    
+    // Phase-specific speed scaling
+    if (phase === PHASES.BIKE) r.speed *= 1.15;
+    
+    r.distance += r.speed * dt * 30;
+    r.animTimer += dt * (1 + r.speed * 2);
+    r.animFrame = r.animTimer;
+  });
+
+  // Particles
+  game.splashes = game.splashes.filter(s => { s.x += s.vx; s.y += s.vy; s.life -= .03; return s.life > 0; });
+  game.particles = game.particles.filter(p2 => { p2.x += p2.vx; p2.y += p2.vy; p2.life -= .04; return p2.life > 0; });
+
+  // Gels
+  updateGels(dt);
+
+  // Phase complete
+  if (p.distance >= dist) {
+    if (phase === PHASES.SWIM) startTransition(1);
+    else if (phase === PHASES.BIKE) startTransition(2);
+    else if (phase === PHASES.RUN) { game.phase = PHASES.FINISH; game.running = false; showResults(); }
+  }
+
+  // HUD
+  const ts = Math.floor(game.totalTime);
+  document.getElementById('hud-timer').textContent = `⏱ ${String(Math.floor(ts/60)).padStart(2,'0')}:${String(ts%60).padStart(2,'0')}`;
+  document.getElementById('hud-phase').textContent = PHASE_NAMES[phase] || '';
+  const pos = getPosition();
+  document.getElementById('hud-position').textContent = ['','1ro 🥇','2do 🥈','3ro 🥉','4to'][pos];
+
+  // Stamina bar
+  const stBar = document.getElementById('stamina-bar');
+  stBar.style.width = p.stamina + '%';
+  const stColor = p.stamina > 50 ? 'linear-gradient(90deg,#2ecc71,#27ae60)' : p.stamina > 20 ? 'linear-gradient(90deg,#f39c12,#e67e22)' : 'linear-gradient(90deg,#e74c3c,#c0392b)';
+  stBar.style.background = stColor;
+}
+
+// ===================== RENDER =====================
+function render() {
+  ctx.clearRect(0,0,W,H);
+  if (!game || game.phase===PHASES.TRANS1 || game.phase===PHASES.TRANS2 || game.phase===PHASES.FINISH) {
+    ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0,0,W,H); return;
+  }
+
+  const phase = game.phase;
+  drawBackground(phase);
+
+  const lanes = getLaneYs(phase);
+
+  // Draw lane highlights (subtle guide lines)
+  ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+  lanes.forEach(ly => { ctx.beginPath(); ctx.moveTo(0,ly); ctx.lineTo(W,ly); ctx.stroke(); });
+
+  // Gels (behind characters)
+  drawGels();
+
+  // Rivals
+  game.rivals.forEach((r,i) => {
+    const rx = 80 + (r.distance - game.player.distance) * 1.5;
+    const clamp = Math.max(-40, Math.min(W+40, rx));
+    drawCharacter(clamp, r.y, phase, false, r.color, r.animFrame);
+  });
+
+  // Player
+  drawCharacter(80, game.player.y, phase, true, '#f5b041', game.player.animFrame);
+
+  drawParticles();
+  drawLaneIndicators();
+  drawFinishLine();
+  drawProgressBar();
+}
+
+// ===================== GAME LOOP =====================
+let lastTime = 0;
+function gameLoop(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, .05);
+  lastTime = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+// ===================== START / RESULTS =====================
+function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('hud').style.display = 'flex';
+  document.getElementById('stamina-container').style.display = 'block';
+  game = createGame();
+  game.running = true;
+  game.lastTapTime = performance.now();
+  showMoveButtons(true);
+  showPhaseAnnounce(`${RACE_MODES[raceMode].icon} ${RACE_MODES[raceMode].name}`);
+  setTimeout(() => showPhaseAnnounce('🏊 ¡A NADAR!'), 1500);
+}
+
+function showResults() {
+  document.getElementById('hud').style.display = 'none';
+  document.getElementById('stamina-container').style.display = 'none';
+  showMoveButtons(false);
+
+  const t = game.totalTime;
+  const mins = String(Math.floor(t/60)).padStart(2,'0');
+  const secs = String(Math.floor(t%60)).padStart(2,'0');
+  const ms = String(Math.floor((t%1)*100)).padStart(2,'0');
+
+  const pos = getPosition();
+  document.getElementById('result-trophy').textContent = ['','🏆','🥈','🥉','😅'][pos];
+  document.getElementById('result-title').textContent = ['','¡CAMPEÓN!','¡SEGUNDO LUGAR!','¡TERCER LUGAR!','¡BUEN INTENTO!'][pos];
+  document.getElementById('result-time').textContent = `${RACE_MODES[raceMode].icon} ${RACE_MODES[raceMode].name} — ${mins}:${secs}.${ms}`;
+
+  const pN = ['Natación','Trans.1','Ciclismo','Trans.2','Carrera'];
+  let html = '';
+  game.phaseTimes.forEach((pt,i) => {
+    if (pt > 0) html += `<div class="result-detail">${pN[i]}: ${String(Math.floor(pt/60)).padStart(2,'0')}:${String(Math.floor(pt%60)).padStart(2,'0')}</div>`;
+  });
+  html += `<div class="result-detail" style="margin-top:8px">Taps: ${game.tapCount} · Geles: ${game.gelsCollected} ⚡</div>`;
+  document.getElementById('result-details').innerHTML = html;
+  document.getElementById('result-screen').style.display = 'flex';
+}
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+document.getElementById('btn-restart').addEventListener('click', () => {
+  document.getElementById('result-screen').style.display = 'none';
+  document.getElementById('start-screen').style.display = 'flex';
+});
+
+// Keyboard support
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp' || e.key === 'w') movingUp = true;
+  if (e.key === 'ArrowDown' || e.key === 's') movingDown = true;
+  if (e.key === ' ') handleTap(e);
+});
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
