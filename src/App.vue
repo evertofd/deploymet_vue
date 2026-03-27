@@ -1,30 +1,33 @@
 <template>
-  <nav>
-    <router-link to="/">Home</router-link> |
-    <router-link to="/about">About</router-link>
+  <nav v-if="isAuthenticated" class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
+    <router-link class="navbar-brand" to="/">Mi App</router-link>
+
+    <div class="d-flex ms-auto align-items-center gap-3">
+      <router-link class="nav-link text-white" to="/">Home</router-link>
+      <router-link class="nav-link text-white" to="/about">About</router-link>
+      <span class="text-white-50 small">{{ userEmail }}</span>
+      <button class="btn btn-outline-light btn-sm" @click="handleLogout">
+        Cerrar sesión
+      </button>
+    </div>
   </nav>
-  <router-view/>
+
+  <router-view />
 </template>
 
-<style>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-}
+<script setup>
+import { computed } from 'vue'
+import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
 
-nav {
-  padding: 30px;
-}
+const store = useStore()
+const router = useRouter()
 
-nav a {
-  font-weight: bold;
-  color: #2c3e50;
-}
+const isAuthenticated = computed(() => store.getters['auth/isAuthenticated'])
+const userEmail = computed(() => store.getters['auth/currentUser']?.email)
 
-nav a.router-link-exact-active {
-  color: #42b983;
+async function handleLogout() {
+  await store.dispatch('auth/logout')
+  router.push('/login')
 }
-</style>
+</script>
